@@ -19,6 +19,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup WireGuard VPN
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wireguard-tools
+          echo "${{ secrets.WG_CONFIG }}" | sudo tee /etc/wireguard/wg0.conf
+          sudo wg-quick up wg0
+          sleep 2
+          curl -s ifconfig.me
+          echo " - VPN connected"
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -27,72 +37,28 @@ jobs:
       - name: Install SpotiFLAC
         run: |
           pip install SpotiFLAC
-          python -c "import SpotiFLAC; print(dir(SpotiFLAC))"
 
-      - name: Try Deezer (most reliable)
+      - name: Download with SpotiFLAC
         run: |
-          mkdir -p downloads/deezer
+          mkdir -p downloads
           spotiflac "${{ inputs.url }}" \
-            downloads/deezer/ \
-            --service deezer \
+            downloads/ \
+            --service deezer qobuz tidal \
             --quality LOSSLESS \
             --filename-format "{title} - {artist}" \
-            --timeout 60 \
-            --retries 2 || echo "Deezer LOSSLESS failed"
-          
-          spotiflac "${{ inputs.url }}" \
-            downloads/deezer/ \
-            --service deezer \
-            --quality HIGH \
-            --filename-format "{title} - {artist}" \
-            --timeout 60 \
-            --retries 2 || echo "Deezer HIGH failed"
-
-      - name: Try Qobuz
-        run: |
-          mkdir -p downloads/qobuz
-          spotiflac "${{ inputs.url }}" \
-            downloads/qobuz/ \
-            --service qobuz \
-            --quality 6 \
-            --filename-format "{title} - {artist}" \
-            --timeout 60 \
-            --retries 2 || echo "Qobuz 6 failed"
-
-      - name: Try Tidal
-        run: |
-          mkdir -p downloads/tidal
-          spotiflac "${{ inputs.url }}" \
-            downloads/tidal/ \
-            --service tidal \
-            --quality LOSSLESS \
-            --filename-format "{title} - {artist}" \
-            --timeout 60 \
-            --retries 2 || echo "Tidal LOSSLESS failed"
-
-      - name: Try SoundCloud
-        run: |
-          mkdir -p downloads/soundcloud
-          spotiflac "${{ inputs.url }}" \
-            downloads/soundcloud/ \
-            --service soundcloud \
-            --quality HIGH \
-            --filename-format "{title} - {artist}" \
-            --timeout 60 \
-            --retries 2 || echo "SoundCloud failed"
-
-      - name: Show results
-        run: |
-          echo "=== All downloads ==="
-          find downloads -type f \( -name "*.flac" -o -name "*.mp3" -o -name "*.m4a" \) -exec ls -lh {} \; 2>/dev/null
-          echo ""
-          echo "=== Sizes ==="
-          du -sh downloads/*/ 2>/dev/null
+            --timeout 120 \
+            --retries 3 \
+            --verbose
 
       - name: Commit files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add downloads/
-          git commit -m "Probe: ${{ inputs.url }}" || echo "No changes"
+          git commit -m "Add: ${{ inputs.url }}" || echo "No changes"
           git push
+
+      - name: Disconnect VPN
+        if: always()
+        run: |
+          sudo wg-quick down wg0
