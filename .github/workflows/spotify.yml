@@ -7,16 +7,6 @@ on:
         description: 'Spotify/Tidal/Apple Music URL'
         required: true
         type: string
-      quality:
-        description: 'Audio quality'
-        required: false
-        type: choice
-        options:
-          - 'LOSSLESS'
-          - 'HI_RES_LOSSLESS'
-          - 'HIGH'
-          - 'LOW'
-        default: 'LOSSLESS'
 
 permissions:
   contents: write
@@ -43,11 +33,10 @@ jobs:
           mkdir -p downloads
           spotiflac "${{ inputs.url }}" \
             downloads/ \
-            --service qobuz deezer amazon tidal \
-            --quality "${{ inputs.quality }}" \
+            --service spoti \
+            --quality HIGH \
             --filename-format "{track}. {title} - {artist}" \
-            --retries 3 \
-            --timeout 120
+            --retries 3
 
       - name: Commit files
         run: |
