@@ -19,17 +19,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python and install spotify-downloader
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg and spotDL
         run: |
-          python -m pip install --upgrade pip
-          pip install spotify-downloader
-          python -m spotify_downloader --help
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install spotdl
 
       - name: Download Spotify track
         run: |
           mkdir -p downloads
-          python -m spotify_downloader "${{ inputs.url }}" \
-            --output "downloads/"
+          python -m spotdl "${{ inputs.url }}" \
+            --output "downloads/{title} - {artist}.{output-ext}"
 
       - name: Debug - Check what was downloaded
         run: |
