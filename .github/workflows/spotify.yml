@@ -7,10 +7,6 @@ on:
         description: 'Spotify URL to download'
         required: true
         type: string
-      chat_id:
-        description: 'Telegram Chat ID to send file to'
-        required: true
-        type: string
 
 jobs:
   download:
@@ -40,39 +36,17 @@ jobs:
           spotdl "${{ inputs.url }}" \
             --format mp3 \
             --bitrate 320k \
-            --output downloads/
+            --output "downloads/{title} - {artist}.{output-ext}"
 
       - name: List downloaded files
         run: |
           echo "Downloaded files:"
           ls -la downloads/
 
-      - name: Send to Telegram
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      - name: Commit files to repo
         run: |
-          for file in downloads/*.mp3; do
-            if [ -f "$file" ]; then
-              echo "Sending: $file"
-              curl -s -F "chat_id=${{ inputs.chat_id }}" \
-                   -F "audio=@$file" \
-                   "https://api.telegram.org/bot${BOT_TOKEN}/sendAudio" || \
-              curl -s -F "chat_id=${{ inputs.chat_id }}" \
-                   -F "document=@$file" \
-                   "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"
-            fi
-          done
-
-      - name: Send completion message
-        if: always()
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        run: |
-          if [ -f downloads/*.mp3 ]; then
-            MESSAGE="✅ Download complete! Check the file above."
-          else
-            MESSAGE="❌ Download failed. No files found."
-          fi
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${{ inputs.chat_id }}" \
-            -d "text=$MESSAGE"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add downloads/
+          git commit -m "Add downloaded Spotify track" || echo "No changes to commit"
+          git push
