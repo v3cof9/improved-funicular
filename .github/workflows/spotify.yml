@@ -33,30 +33,39 @@ jobs:
       - name: Create cookies
         run: echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
 
-      - name: Get song info
+      - name: Get song info from Spotify URL
         id: info
         run: |
-          python << EOF
-          import spotdl
-          s = spotdl.Song.from_url("${{ inputs.url }}")
-          print(f"{s.artist} - {s.title}")
-          EOF
+          # Extract Spotify track ID from URL
+          TRACK_ID=$(echo "${{ inputs.url }}" | grep -oP 'track/\K[^?]+')
+          
+          # Use Spotify's public API
+          ACCESS_TOKEN=$(curl -s -X POST "https://accounts.spotify.com/api/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials" \
+            -d "client_id=${{ secrets.SPOTIFY_CLIENT_ID }}" \
+            -d "client_secret=${{ secrets.SPOTIFY_CLIENT_SECRET }}" | jq -r '.access_token')
+          
+          TRACK_INFO=$(curl -s "https://api.spotify.com/v1/tracks/$TRACK_ID" \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
+          
+          ARTIST=$(echo "$TRACK_INFO" | jq -r '.artists[0].name')
+          TITLE=$(echo "$TRACK_INFO" | jq -r '.name')
+          
+          echo "query=${ARTIST} - ${TITLE}" >> $GITHUB_OUTPUT
+          echo "Found: ${ARTIST} - ${TITLE}"
 
       - name: Download
         run: |
           mkdir -p downloads
-          
-          SONG=$(python -c "import spotdl; s=spotdl.Song.from_url('${{ inputs.url }}'); print(f'{s.artist} - {s.title}')")
-          
           yt-dlp \
             --cookies /tmp/cookies.txt \
-            "ytsearch1:${SONG}" \
+            "ytsearch1:${{ steps.info.outputs.query }}" \
             -f bestaudio \
             -x \
             --audio-format mp3 \
             --audio-quality 0 \
-            -o "downloads/%(title)s.%(ext)s" \
-            --embed-metadata
+            -o "downloads/%(title)s.%(ext)s"
 
       - name: Commit files
         run: |
