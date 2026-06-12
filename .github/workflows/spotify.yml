@@ -14,20 +14,9 @@ on:
         options:
           - 'LOSSLESS'
           - 'HI_RES_LOSSLESS'
-          - 'DOLBY_ATMOS'
           - 'HIGH'
           - 'LOW'
         default: 'LOSSLESS'
-      service:
-        description: 'Download service'
-        required: false
-        type: choice
-        options:
-          - 'tidal'
-          - 'qobuz'
-          - 'deezer'
-          - 'amazon'
-        default: 'tidal'
 
 permissions:
   contents: write
@@ -54,9 +43,11 @@ jobs:
           mkdir -p downloads
           spotiflac "${{ inputs.url }}" \
             downloads/ \
-            --service "${{ inputs.service }}" \
+            --service qobuz deezer amazon tidal \
             --quality "${{ inputs.quality }}" \
-            --filename-format "{track}. {title} - {artist}"
+            --filename-format "{track}. {title} - {artist}" \
+            --retries 3 \
+            --timeout 120
 
       - name: Commit files
         run: |
