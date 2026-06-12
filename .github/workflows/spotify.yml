@@ -28,35 +28,22 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
           pip install spotdl
-          pip install --upgrade yt-dlp
 
-      - name: Test yt-dlp first
+      - name: Create cookies file
         run: |
-          yt-dlp --version
-          yt-dlp -f bestaudio "https://music.youtube.com/watch?v=hThAlY3Q2Kw" \
-            --print filename \
-            --dry-run || echo "yt-dlp failed directly too"
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
 
-      - name: Download with detailed logging
+      - name: Download track
         run: |
           mkdir -p downloads
           python -m spotdl "${{ inputs.url }}" \
             --output "downloads/" \
-            --log-level DEBUG \
-            --dont-filter-results \
-            --max-retries 5 || echo "spotdl failed"
-
-      - name: Debug
-        run: |
-          echo "=== Contents ==="
-          ls -la downloads/ || echo "empty"
-          ls -la raw/ || echo "no raw"
+            --cookie-file cookies.txt
 
       - name: Commit files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add downloads/ || true
-          git add raw/ || true
-          git commit -m "Debug: ${{ inputs.url }}" || echo "No changes to commit"
+          git add downloads/
+          git commit -m "Add: ${{ inputs.url }}" || echo "No changes to commit"
           git push
