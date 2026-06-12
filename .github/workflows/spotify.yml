@@ -4,21 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Spotify/Tidal/Apple Music URL'
+        description: 'Spotify URL'
         required: true
         type: string
-      format:
-        description: 'Output format'
-        required: false
-        type: choice
-        options:
-          - 'FLAC 16-bit (CD Quality)'
-          - 'FLAC 24-bit (Hi-Res)'
-          - 'MP3 320kbps'
-          - 'MP3 128kbps'
-          - 'AAC 256kbps'
-          - 'Opus 160kbps'
-        default: 'MP3 320kbps'
 
 permissions:
   contents: write
@@ -36,74 +24,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install SpotiFLAC and FFmpeg
+      - name: Install FFmpeg and spotDL
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install SpotiFLAC
+          pip install spotdl
 
-      - name: Download FLAC 16-bit master
+      - name: Download track
         run: |
           mkdir -p downloads
-          spotiflac "${{ inputs.url }}" \
-            downloads/ \
-            --service qobuz tidal deezer \
-            --quality 6 \
-            --filename-format "{title} - {artist}" \
-            --retries 3 \
-            --timeout 120
-
-      - name: Convert to FLAC 24-bit
-        if: ${{ inputs.format == 'FLAC 24-bit (Hi-Res)' }}
-        run: |
-          echo "Keeping original FLAC 16-bit (Hi-Res not available from CD source)"
-          ls -la downloads/
-
-      - name: Convert to MP3 320kbps
-        if: ${{ inputs.format == 'MP3 320kbps' }}
-        run: |
-          mkdir -p converted
-          for f in downloads/*.flac; do
-            ffmpeg -i "$f" -b:a 320k -map_metadata 0 -id3v2_version 3 "converted/$(basename "$f" .flac).mp3"
-          done
-          rm -rf downloads && mv converted downloads
-
-      - name: Convert to MP3 128kbps
-        if: ${{ inputs.format == 'MP3 128kbps' }}
-        run: |
-          mkdir -p converted
-          for f in downloads/*.flac; do
-            ffmpeg -i "$f" -b:a 128k -map_metadata 0 -id3v2_version 3 "converted/$(basename "$f" .flac).mp3"
-          done
-          rm -rf downloads && mv converted downloads
-
-      - name: Convert to AAC 256kbps
-        if: ${{ inputs.format == 'AAC 256kbps' }}
-        run: |
-          mkdir -p converted
-          for f in downloads/*.flac; do
-            ffmpeg -i "$f" -c:a aac -b:a 256k "converted/$(basename "$f" .flac).m4a"
-          done
-          rm -rf downloads && mv converted downloads
-
-      - name: Convert to Opus 160kbps
-        if: ${{ inputs.format == 'Opus 160kbps' }}
-        run: |
-          mkdir -p converted
-          for f in downloads/*.flac; do
-            ffmpeg -i "$f" -c:a libopus -b:a 160k "converted/$(basename "$f" .flac).opus"
-          done
-          rm -rf downloads && mv converted downloads
-
-      - name: Keep FLAC 16-bit
-        if: ${{ inputs.format == 'FLAC 16-bit (CD Quality)' }}
-        run: |
-          echo "Keeping original FLAC 16-bit"
-          ls -la downloads/
+          python -m spotdl "${{ inputs.url }}" \
+            --output "downloads/{title} - {artist}.{output-ext}"
 
       - name: Commit files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add downloads/
-          git commit -m "Add ${{ inputs.format }} - ${{ inputs.url }}" || echo "No changes to commit"
+          git commit -m "Add: ${{ inputs.url }}" || echo "No changes to commit"
           git push
