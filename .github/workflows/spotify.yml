@@ -19,46 +19,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup WireGuard VPN
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wireguard-tools
-          echo "${{ secrets.WG_CONFIG }}" | sudo tee /etc/wireguard/wg0.conf
-          sudo wg-quick up wg0
-          sleep 2
-          curl -s ifconfig.me
-          echo " - VPN connected"
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install SpotiFLAC
+      - name: Install tools
         run: |
-          pip install SpotiFLAC
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install spotdl yt-dlp
 
-      - name: Download with SpotiFLAC
+      - name: Create cookies
+        run: echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
+
+      - name: Get song info
+        id: info
+        run: |
+          python << 'PYEOF' > /tmp/song.txt
+import spotdl
+s = spotdl.Song.from_url("${{ inputs.url }}")
+print(f"{s.artist} - {s.title}")
+PYEOF
+          echo "query=$(cat /tmp/song.txt)" >> $GITHUB_OUTPUT
+          echo "Song: $(cat /tmp/song.txt)"
+
+      - name: Download with yt-dlp
         run: |
           mkdir -p downloads
-          spotiflac "${{ inputs.url }}" \
-            downloads/ \
-            --service deezer qobuz tidal \
-            --quality LOSSLESS \
-            --filename-format "{title} - {artist}" \
-            --timeout 120 \
-            --retries 3 \
-            --verbose
+          yt-dlp \
+            --cookies /tmp/cookies.txt \
+            "ytsearch1:${{ steps.info.outputs.query }}" \
+            -f "bestaudio" \
+            -o "downloads/%(title)s.%(ext)s" \
+            -x --audio-format mp3 --audio-quality 0 \
+            --embed-metadata --embed-thumbnail \
+            --no-playlist
 
       - name: Commit files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add downloads/
-          git commit -m "Add: ${{ inputs.url }}" || echo "No changes"
+          git commit -m "Add: ${{ steps.info.outputs.query }}" || echo "No changes"
           git push
-
-      - name: Disconnect VPN
-        if: always()
-        run: |
-          sudo wg-quick down wg0
