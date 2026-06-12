@@ -31,19 +31,30 @@ jobs:
 
       - name: Create cookies file
         run: |
-          echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
+          echo "Cookie file size: $(wc -c < /tmp/cookies.txt)"
+          head -5 /tmp/cookies.txt
 
-      - name: Download track
+      - name: Test yt-dlp with cookies
+        run: |
+          yt-dlp --cookies /tmp/cookies.txt \
+            -f bestaudio \
+            "https://music.youtube.com/watch?v=hThAlY3Q2Kw" \
+            -o "test.%(ext)s" \
+            --verbose || echo "yt-dlp failed"
+
+      - name: Download with spotDL
         run: |
           mkdir -p downloads
           python -m spotdl "${{ inputs.url }}" \
             --output "downloads/" \
-            --cookie-file cookies.txt
+            --cookie-file /tmp/cookies.txt \
+            --log-level DEBUG
 
       - name: Commit files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add downloads/
-          git commit -m "Add: ${{ inputs.url }}" || echo "No changes to commit"
+          git add downloads/ test.* 2>/dev/null || true
+          git commit -m "Test: ${{ inputs.url }}" || echo "No changes"
           git push
