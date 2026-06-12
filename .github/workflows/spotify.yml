@@ -24,31 +24,51 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install tools
+      - name: Install SpotiFLAC
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install yt-dlp
+          pip install SpotiFLAC
 
-      - name: Create cookies
-        run: echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
+      - name: Health check all services
+        run: |
+          python << 'EOF'
+          from backend.core.health_check import run_health_check, print_health_report
+          results = run_health_check(["tidal", "qobuz", "deezer", "amazon", "soundcloud", "youtube"])
+          print_health_report(results)
+          EOF
 
-      - name: Download as MP3
+      - name: Try all services with all qualities
         run: |
           mkdir -p downloads
-          yt-dlp --cookies /tmp/cookies.txt \
-            "ytsearch:${{ inputs.url }}" \
-            -f "bestaudio" \
-            -o "downloads/%(title)s.%(ext)s" \
-            --extract-audio \
-            --audio-format mp3 \
-            --audio-quality 320k \
-            --embed-thumbnail \
-            --add-metadata
+          
+          SERVICES=("deezer" "qobuz" "tidal" "amazon" "soundcloud" "youtube")
+          QUALITIES=("LOSSLESS" "HIGH" "LOW" "6" "7" "27")
+          URL="${{ inputs.url }}"
+          
+          for svc in "${SERVICES[@]}"; do
+            for q in "${QUALITIES[@]}"; do
+              echo "=== Trying: $svc - $q ==="
+              spotiflac "$URL" "downloads/$svc-$q/" \
+                --service "$svc" \
+                --quality "$q" \
+                --filename-format "{title} - {artist}" \
+                --timeout 30 \
+                --retries 1 2>&1 | tail -5
+              echo ""
+            done
+          done
+
+      - name: Show results
+        run: |
+          echo "=== Downloaded files ==="
+          find downloads -type f -exec ls -lh {} \; 2>/dev/null || echo "Nothing downloaded"
+          echo ""
+          echo "=== Directory sizes ==="
+          du -sh downloads/*/ 2>/dev/null || echo "No directories"
 
       - name: Commit files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add downloads/
-          git commit -m "Add: ${{ inputs.url }}" || echo "No changes"
+          git commit -m "Probe: ${{ inputs.url }}" || echo "No changes"
           git push
