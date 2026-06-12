@@ -27,43 +27,67 @@ jobs:
       - name: Install SpotiFLAC
         run: |
           pip install SpotiFLAC
+          python -c "import SpotiFLAC; print(dir(SpotiFLAC))"
 
-      - name: Health check all services
+      - name: Try Deezer (most reliable)
         run: |
-          python << 'EOF'
-          from backend.core.health_check import run_health_check, print_health_report
-          results = run_health_check(["tidal", "qobuz", "deezer", "amazon", "soundcloud", "youtube"])
-          print_health_report(results)
-          EOF
+          mkdir -p downloads/deezer
+          spotiflac "${{ inputs.url }}" \
+            downloads/deezer/ \
+            --service deezer \
+            --quality LOSSLESS \
+            --filename-format "{title} - {artist}" \
+            --timeout 60 \
+            --retries 2 || echo "Deezer LOSSLESS failed"
+          
+          spotiflac "${{ inputs.url }}" \
+            downloads/deezer/ \
+            --service deezer \
+            --quality HIGH \
+            --filename-format "{title} - {artist}" \
+            --timeout 60 \
+            --retries 2 || echo "Deezer HIGH failed"
 
-      - name: Try all services with all qualities
+      - name: Try Qobuz
         run: |
-          mkdir -p downloads
-          
-          SERVICES=("deezer" "qobuz" "tidal" "amazon" "soundcloud" "youtube")
-          QUALITIES=("LOSSLESS" "HIGH" "LOW" "6" "7" "27")
-          URL="${{ inputs.url }}"
-          
-          for svc in "${SERVICES[@]}"; do
-            for q in "${QUALITIES[@]}"; do
-              echo "=== Trying: $svc - $q ==="
-              spotiflac "$URL" "downloads/$svc-$q/" \
-                --service "$svc" \
-                --quality "$q" \
-                --filename-format "{title} - {artist}" \
-                --timeout 30 \
-                --retries 1 2>&1 | tail -5
-              echo ""
-            done
-          done
+          mkdir -p downloads/qobuz
+          spotiflac "${{ inputs.url }}" \
+            downloads/qobuz/ \
+            --service qobuz \
+            --quality 6 \
+            --filename-format "{title} - {artist}" \
+            --timeout 60 \
+            --retries 2 || echo "Qobuz 6 failed"
+
+      - name: Try Tidal
+        run: |
+          mkdir -p downloads/tidal
+          spotiflac "${{ inputs.url }}" \
+            downloads/tidal/ \
+            --service tidal \
+            --quality LOSSLESS \
+            --filename-format "{title} - {artist}" \
+            --timeout 60 \
+            --retries 2 || echo "Tidal LOSSLESS failed"
+
+      - name: Try SoundCloud
+        run: |
+          mkdir -p downloads/soundcloud
+          spotiflac "${{ inputs.url }}" \
+            downloads/soundcloud/ \
+            --service soundcloud \
+            --quality HIGH \
+            --filename-format "{title} - {artist}" \
+            --timeout 60 \
+            --retries 2 || echo "SoundCloud failed"
 
       - name: Show results
         run: |
-          echo "=== Downloaded files ==="
-          find downloads -type f -exec ls -lh {} \; 2>/dev/null || echo "Nothing downloaded"
+          echo "=== All downloads ==="
+          find downloads -type f \( -name "*.flac" -o -name "*.mp3" -o -name "*.m4a" \) -exec ls -lh {} \; 2>/dev/null
           echo ""
-          echo "=== Directory sizes ==="
-          du -sh downloads/*/ 2>/dev/null || echo "No directories"
+          echo "=== Sizes ==="
+          du -sh downloads/*/ 2>/dev/null
 
       - name: Commit files
         run: |
