@@ -19,15 +19,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install pip packages
+      - name: Setup Python and install spotify-downloader
         run: |
+          python -m pip install --upgrade pip
           pip install spotify-downloader
+          python -m spotify_downloader --help
 
       - name: Download Spotify track
         run: |
           mkdir -p downloads
-          spotdl "${{ inputs.url }}" \
-            --output "downloads/{title} - {artist}.{output-ext}"
+          python -m spotify_downloader "${{ inputs.url }}" \
+            --output "downloads/"
 
       - name: Debug - Check what was downloaded
         run: |
