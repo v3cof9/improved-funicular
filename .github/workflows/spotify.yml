@@ -19,37 +19,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install FFmpeg
+      - name: Install pip packages
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      - name: Install spotDL
-        run: |
-          pip install spotdl
+          pip install spotify-downloader
 
       - name: Download Spotify track
         run: |
           mkdir -p downloads
           spotdl "${{ inputs.url }}" \
-            --format mp3 \
-            --bitrate 320k \
             --output "downloads/{title} - {artist}.{output-ext}"
 
-      - name: List downloaded files
+      - name: Debug - Check what was downloaded
         run: |
-          echo "Downloaded files:"
-          ls -la downloads/
+          echo "=== Downloads folder ==="
+          ls -la downloads/ || echo "No downloads folder"
+          echo "=== Git status ==="
+          git status
 
       - name: Commit files to repo
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add downloads/
+          git status
           git commit -m "Add downloaded Spotify track" || echo "No changes to commit"
-          git push
+          git push origin HEAD:main || git push origin HEAD:master
