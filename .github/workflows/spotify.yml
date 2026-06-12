@@ -4,6 +4,72 @@ on:
   workflow_dispatch:
     inputs:
       url:
+        description: 'Spotify/Tidal/Apple Music URL'
+        required: true
+        type: string
+      quality:
+        description: 'Audio quality'
+        required: false
+        type: choice
+        options:
+          - 'LOSSLESS'
+          - 'HI_RES_LOSSLESS'
+          - 'DOLBY_ATMOS'
+          - 'HIGH'
+          - 'LOW'
+        default: 'LOSSLESS'
+      service:
+        description: 'Download service'
+        required: false
+        type: choice
+        options:
+          - 'tidal'
+          - 'qobuz'
+          - 'deezer'
+          - 'amazon'
+        default: 'tidal'
+
+permissions:
+  contents: write
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install SpotiFLAC
+        run: |
+          pip install SpotiFLAC
+
+      - name: Download track
+        run: |
+          mkdir -p downloads
+          spotiflac "${{ inputs.url }}" \
+            downloads/ \
+            --service "${{ inputs.service }}" \
+            --quality "${{ inputs.quality }}" \
+            --filename-format "{track}. {title} - {artist}"
+
+      - name: Commit files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add downloads/
+          git commit -m "Add downloaded: ${{ inputs.url }}" || echo "No changes to commit"
+          git pushname: Spotify Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
         description: 'Spotify URL to download'
         required: true
         type: string
