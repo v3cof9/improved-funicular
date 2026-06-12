@@ -33,7 +33,7 @@ jobs:
           mkdir -p downloads
           spotiflac "${{ inputs.url }}" \
             downloads/ \
-            --service spoti \
+            --service soundcloud youtube \
             --quality HIGH \
             --filename-format "{track}. {title} - {artist}" \
             --retries 3
