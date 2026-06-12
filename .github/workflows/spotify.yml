@@ -1,0 +1,78 @@
+name: Spotify Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Spotify URL to download'
+        required: true
+        type: string
+      chat_id:
+        description: 'Telegram Chat ID to send file to'
+        required: true
+        type: string
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install spotDL
+        run: |
+          pip install spotdl
+
+      - name: Download Spotify track
+        run: |
+          mkdir -p downloads
+          spotdl "${{ inputs.url }}" \
+            --format mp3 \
+            --bitrate 320k \
+            --output downloads/
+
+      - name: List downloaded files
+        run: |
+          echo "Downloaded files:"
+          ls -la downloads/
+
+      - name: Send to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          for file in downloads/*.mp3; do
+            if [ -f "$file" ]; then
+              echo "Sending: $file"
+              curl -s -F "chat_id=${{ inputs.chat_id }}" \
+                   -F "audio=@$file" \
+                   "https://api.telegram.org/bot${BOT_TOKEN}/sendAudio" || \
+              curl -s -F "chat_id=${{ inputs.chat_id }}" \
+                   -F "document=@$file" \
+                   "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"
+            fi
+          done
+
+      - name: Send completion message
+        if: always()
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          if [ -f downloads/*.mp3 ]; then
+            MESSAGE="✅ Download complete! Check the file above."
+          else
+            MESSAGE="❌ Download failed. No files found."
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${{ inputs.chat_id }}" \
+            -d "text=$MESSAGE"
